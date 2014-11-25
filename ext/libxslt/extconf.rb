@@ -123,5 +123,39 @@ unless find_header("ruby_libxml.h", "#{gem_spec.full_gem_path}/ext/libxml")
   EOL
 end
 
+
+RUBY_VERSION =~ /(\d+.\d+)/
+minor_version = $1
+paths = ["#{gem_spec.full_gem_path}/lib", 
+         "#{gem_spec.full_gem_path}/lib/#{minor_version}",
+         "#{gem_spec.full_gem_path}/ext/libxml"]
+
+is_osx = RbConfig::CONFIG['host_os'].match(/darwin/)
+is_rbx = defined?(RUBY_ENGINE) && (RUBY_ENGINE == "rbx")
+
+# No need to link xml_ruby on OS X
+# Also do not link on rubinius
+unless (is_osx or is_rbx)
+  # Hack to make sure ruby library is *after* xml_ruby library
+  $LIBS = "#{$LIBRUBYARG_STATIC} #{$LIBS}"
+
+  libraries = ["xml_ruby", # Linux
+               ":libxml_ruby.so",  # mingw
+               "libxml_ruby-#{RbConfig::CONFIG["arch"]}"] # mswin
+
+  libxml_library = libraries.detect do |library|
+    find_library(library, "Init_libxml_ruby", *paths)
+  end
+
+  unless libxml_library
+    crash(<<-EOL)
+      Need libxml-ruby
+      Please install libxml-ruby or specify the path to the gem via:
+        --with-libxml-ruby=/path/to/libxml-ruby gem
+    EOL
+  end
+  $LIBS.gsub!($LIBRUBYARG_STATIC,'')
+end
+
 create_header()
 create_makefile("libxslt_ruby")
